@@ -2,6 +2,7 @@ module Main exposing (..)
 
 import Browser
 import Browser.Events
+import Game
 import Html exposing (Html, div)
 import Html.Attributes exposing (style)
 import Json.Decode exposing (Decoder)
@@ -9,6 +10,7 @@ import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector2 as Vec2 exposing (Vec2, vec2)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Scene
+import TileCollision
 import Time exposing (Posix)
 import Viewport exposing (PixelPosition, PixelSize)
 import WebGL
@@ -24,8 +26,11 @@ type alias Flags =
 type alias Model =
     { viewportSize : PixelSize
     , mousePosition : PixelPosition
-    , clickPosition : PixelPosition
+
+    --, clickPosition : PixelPosition
     , currentTimeInSeconds : Float
+    , position : Vec2
+    , velocity : Vec2
     }
 
 
@@ -33,11 +38,15 @@ type Msg
     = OnResize PixelSize
     | OnMouseMove PixelPosition
     | OnMouseClick
-    | OnAnimationFrame Posix
+    | OnAnimationFrame Float
 
 
 
 -- Init
+
+
+worldSize =
+    10
 
 
 init : Flags -> ( Model, Cmd Msg )
@@ -52,10 +61,8 @@ init flags =
                 { top = 320
                 , left = 240
                 }
-            , clickPosition =
-                { top = 320
-                , left = 240
-                }
+            , position = vec2 0 0
+            , velocity = vec2 0 0
             , currentTimeInSeconds = 0
             }
 
@@ -84,10 +91,46 @@ update msg model =
             noCmd { model | mousePosition = position }
 
         OnMouseClick ->
-            noCmd { model | clickPosition = model.mousePosition }
+            let
+                clickPosition =
+                    Vec2.fromRecord <| Viewport.pixelToWorldUnits model.viewportSize worldSize model.mousePosition
 
-        OnAnimationFrame posixTimestamp ->
-            noCmd { model | currentTimeInSeconds = toFloat (Time.posixToMillis posixTimestamp) / 1000 }
+                velocity =
+                    Vec2.sub clickPosition model.position
+                        |> Vec2.scale 0.5
+            in
+            noCmd { model | velocity = velocity }
+
+        OnAnimationFrame dtInMilliseconds ->
+            let
+                dt =
+                    dtInMilliseconds / 1000
+
+                dp =
+                    Vec2.scale dt model.velocity
+
+                velocity =
+                    Vec2.scale (0.98 ^ dt) model.velocity
+
+                start =
+                    model.position
+
+                end =
+                    Vec2.add model.position dp
+
+                collision =
+                    TileCollision.collisionsAlongX
+                        Game.hasBlockerAlong
+                        Game.mobWidth
+                        (Vec2.toRecord start)
+                        (Vec2.toRecord end)
+            in
+            noCmd
+                { model
+                    | currentTimeInSeconds = model.currentTimeInSeconds + dt / 1000
+                    , velocity = velocity
+                    , position = end
+                }
 
 
 
@@ -97,14 +140,11 @@ update msg model =
 view : Model -> Browser.Document Msg
 view model =
     let
-        worldSize =
-            10
-
         entities =
             Scene.entities
                 { cameraToViewport = Viewport.worldToPixelTransform model.viewportSize worldSize
                 , mousePosition = Vec2.fromRecord <| Viewport.pixelToWorldUnits model.viewportSize worldSize model.mousePosition
-                , clickPosition = Vec2.fromRecord <| Viewport.pixelToWorldUnits model.viewportSize worldSize model.clickPosition
+                , clickPosition = model.position
                 , time = model.currentTimeInSeconds
                 }
     in
@@ -131,7 +171,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ Viewport.onWindowResize OnResize
-        , Browser.Events.onAnimationFrame OnAnimationFrame
+        , Browser.Events.onAnimationFrameDelta OnAnimationFrame
         , Browser.Events.onMouseMove mousePositionDecoder |> Sub.map OnMouseMove
         , Browser.Events.onClick (Json.Decode.succeed OnMouseClick)
         ]

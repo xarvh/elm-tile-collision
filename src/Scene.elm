@@ -2,6 +2,7 @@ module Scene exposing (..)
 
 import Circle
 import Dict exposing (Dict)
+import Game
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector2 as Vec2 exposing (Vec2, vec2)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
@@ -11,93 +12,6 @@ import Quad
 import Set exposing (Set)
 import TileCollision exposing (BlockerDirections, Tile, Vector)
 import WebGL exposing (Entity, Mesh, Shader)
-
-
---
-
-
-mobWidth =
-    0.5
-
-
-mobHeight =
-    1.0
-
-
-tilemapSrc =
-    """
-
-     ^^    ====
-###       ##
-###############
-
-"""
-
-
-
---
-
-
-charToBlockers : Char -> BlockerDirections Bool
-charToBlockers char =
-    case char of
-        '#' ->
-            { positiveX = True
-            , negativeX = True
-            , positiveY = True
-            , negativeY = True
-            }
-
-        '=' ->
-            { positiveX = False
-            , negativeX = False
-            , positiveY = True
-            , negativeY = True
-            }
-
-        '^' ->
-            { positiveX = False
-            , negativeX = False
-            , positiveY = False
-            , negativeY = True
-            }
-
-        _ ->
-            { positiveX = False
-            , negativeX = False
-            , positiveY = False
-            , negativeY = False
-            }
-
-
-type alias Tilemap =
-    Dict ( Int, Int ) Char
-
-
-tilemap : Tilemap
-tilemap =
-    tilemapSrc
-        |> String.split "\n"
-        |> List.indexedMap rowToTuple
-        |> List.concat
-        |> Dict.fromList
-
-
-rowToTuple : Int -> String -> List ( ( Int, Int ), Char )
-rowToTuple invertedY row =
-    let
-        y =
-            3 - invertedY
-
-        charToTuple index char =
-            ( ( index - 8, y )
-            , char
-            )
-    in
-    row
-        |> String.toList
-        |> List.indexedMap charToTuple
-
 
 
 -- Periodic functions
@@ -121,31 +35,6 @@ periodHarmonic time phase period =
 
 
 
--- Model
-
-
-getBlockers : (BlockerDirections Bool -> Bool) -> Int -> Int -> Bool
-getBlockers getter x y =
-    case Dict.get ( x, y ) tilemap of
-        Nothing ->
-            False
-
-        Just char ->
-            char
-                |> charToBlockers
-                |> getter
-
-
-hasBlockerAlong : BlockerDirections (Int -> Int -> Bool)
-hasBlockerAlong =
-    { positiveX = getBlockers .positiveX
-    , negativeX = getBlockers .negativeX
-    , positiveY = getBlockers .positiveY
-    , negativeY = getBlockers .negativeY
-    }
-
-
-
 -- Entities
 
 
@@ -165,7 +54,7 @@ entities { cameraToViewport, mousePosition, clickPosition, time } =
                 |> Mat4.scale3 0.2 0.2 1
 
         obsEntities =
-            tilemap
+            Game.tilemap
                 |> Dict.toList
                 |> List.map (obstacleToEntity worldToViewport)
                 |> List.concat
@@ -176,8 +65,8 @@ entities { cameraToViewport, mousePosition, clickPosition, time } =
 
         collisions =
             TileCollision.collisionsAlongX
-                hasBlockerAlong
-                mobWidth
+                Game.hasBlockerAlong
+                Game.mobWidth
                 (Vec2.toRecord clickPosition)
                 (Vec2.toRecord mousePosition)
 
@@ -207,7 +96,7 @@ mob worldToViewport position color =
         entityToViewport =
             worldToViewport
                 |> Mat4.translate3 x y 0
-                |> Mat4.scale3 mobWidth mobHeight 1
+                |> Mat4.scale3 Game.mobWidth Game.mobHeight 1
     in
     Quad.entity entityToViewport color
 
@@ -229,7 +118,7 @@ obstacleToEntity : Mat4 -> ( ( Int, Int ), Char ) -> List Entity
 obstacleToEntity worldToViewport ( ( x, y ), char ) =
     let
         blockers =
-            charToBlockers char
+            Game.charToBlockers char
 
         anglesAndBlockers =
             [ ( .negativeY, 0 )

@@ -53,10 +53,14 @@ type alias Collision =
     }
 
 
+
+--
+
+
 vectorToContainingTile : Vector -> Tile
 vectorToContainingTile { x, y } =
-    { x = floor <| x + 0.5
-    , y = floor <| y + 0.5
+    { x = coordinateToContainingTile x
+    , y = coordinateToContainingTile y
     }
 
 
@@ -67,6 +71,10 @@ coordinateToContainingTile x =
 
 collisions : BlockerDirections (Int -> Int -> Bool) -> { width : Float, height : Float } -> Vector -> Vector -> Maybe Collision
 collisions hasBlockerAlong size start end =
+    let
+        alongX =
+            collisionsAlongX hasBlockerAlong
+    in
     Nothing
 
 
