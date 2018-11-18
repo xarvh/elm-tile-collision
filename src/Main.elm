@@ -10,7 +10,7 @@ import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector2 as Vec2 exposing (Vec2, vec2)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import Scene
-import TileCollision
+import TileCollision exposing (Vector)
 import Time exposing (Posix)
 import Viewport exposing (PixelPosition, PixelSize)
 import WebGL
@@ -99,7 +99,8 @@ update msg model =
                     Vec2.sub clickPosition model.position
                         |> Vec2.scale 0.5
             in
-            noCmd { model | velocity = velocity }
+            --noCmd { model | velocity = velocity }
+            noCmd { model | position = clickPosition }
 
         OnAnimationFrame dtInMilliseconds ->
             let
@@ -118,18 +119,22 @@ update msg model =
                 end =
                     Vec2.add model.position dp
 
-                collision =
-                    TileCollision.collisionsAlongX
-                        Game.hasBlockerAlong
-                        Game.mobWidth
-                        (Vec2.toRecord start)
-                        (Vec2.toRecord end)
+                {-
+                ( fixedPosition, maybeCollision ) =
+                    TileCollision.collisions
+                        { hasBlockerAlong = Game.hasBlockerAlong
+                        , tileSize = Game.tileSize
+                        , mobSize = Game.mobSize
+                        , start = Game.vec2ints start
+                        , end = Game.vec2ints end
+                        }
+                -}
             in
             noCmd
                 { model
                     | currentTimeInSeconds = model.currentTimeInSeconds + dt / 1000
                     , velocity = velocity
-                    , position = end
+                    --, position = Game.ints2vec fixedPosition
                 }
 
 

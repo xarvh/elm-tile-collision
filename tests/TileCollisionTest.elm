@@ -11,12 +11,12 @@ import TileCollision exposing (Size, Vector)
 
 fuzzVector : Fuzzer Vector
 fuzzVector =
-    Fuzz.map2 Vector (Fuzz.floatRange -100 100) (Fuzz.floatRange -100 100)
+    Fuzz.map2 Vector (Fuzz.intRange -10000 10000) (Fuzz.intRange -10000 10000)
 
 
 fuzzSize : Fuzzer Size
 fuzzSize =
-    Fuzz.map2 Size (Fuzz.floatRange 0 100) (Fuzz.floatRange 0 100)
+    Fuzz.map2 Size (Fuzz.intRange 0 100) (Fuzz.intRange 0 100)
 
 
 type alias TestParams =
@@ -43,24 +43,40 @@ fuzzTestParams =
 suite : Test
 suite =
     Test.fuzz fuzzTestParams "Should not pass walls" <|
-        \{ infiniteWallX, mobSize, s, end } ->
+        \params ->
             let
+                { infiniteWallX, mobSize, s, end } =
+                    params
+
+                tileSizeInPixels =
+                    16
+
                 hasBlockerAlong =
-                    { positiveX = \x y -> x == infiniteWallX
-                    , negativeX = \x y -> False
-                    , positiveY = \x y -> False
-                    , negativeY = \x y -> False
+                    { positiveDeltaX = \x y -> x == infiniteWallX
+                    , negativeDeltaX = \x y -> False
+                    , positiveDeltaY = \x y -> False
+                    , negativeDeltaY = \x y -> False
                     }
 
                 wallBlockerX =
-                    toFloat infiniteWallX - 0.5
+                    infiniteWallX * tileSizeInPixels
+
+                maximumStartX =
+                    wallBlockerX - mobSize.halfWidth - 1
 
                 start =
-                    { s | x = wallBlockerX - abs s.x }
+                    { s | x = maximumStartX - abs s.x }
 
-                ( fix, collisions ) =
-                    TileCollision.collisionsAlongX hasBlockerAlong mobSize start end
+                fix =
+                    TileCollision.collide
+                        { hasBlockerAlong = hasBlockerAlong
+                        , tileSize = tileSizeInPixels
+                        , mobSize = mobSize
+                        , start = start
+                        , end = end
+                        }
+                        |> Maybe.map .fix
+                        |> Maybe.withDefault end
             in
-            fix.x
-                + mobSize.width
+            (fix.x + mobSize.halfWidth)
                 |> Expect.atMost wallBlockerX

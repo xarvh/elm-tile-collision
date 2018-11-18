@@ -1,12 +1,4 @@
-module Game
-    exposing
-        ( Tilemap
-        , charToBlockers
-        , hasBlockerAlong
-        , mobHeight
-        , mobWidth
-        , tilemap
-        )
+module Game exposing (..)
 
 import Dict exposing (Dict)
 import Math.Matrix4 as Mat4 exposing (Mat4)
@@ -17,22 +9,24 @@ import Set exposing (Set)
 import TileCollision exposing (BlockerDirections, Tile, Vector)
 
 
+tileSize =
+    16
+
+
 worldSize =
     10
 
 
-mobWidth =
-    0.5
-
-
-mobHeight =
-    1.0
+mobSize =
+    { halfWidth = tileSize // 2
+    , halfHeight = tileSize
+    }
 
 
 tilemapSrc =
     """
-
-     ^^    ====
+ #
+ #   ^^    ====
 ###       ##
 ###############
 
@@ -43,35 +37,62 @@ tilemapSrc =
 --
 
 
+
+
+tileCenter : Tile -> Vec2
+tileCenter tile =
+    vec2 (toFloat tile.x + 0.5) (toFloat tile.y + 0.5)
+
+
+vectorToVec2 : Vector -> Vec2
+vectorToVec2 vector =
+    vec2 (toFloat vector.x / toFloat tileSize) (toFloat vector.y / toFloat tileSize)
+
+
+vec2ToVector : Vec2 -> Vector
+vec2ToVector v =
+  { x = round (Vec2.getX v * tileSize)
+  , y = round (Vec2.getY v * tileSize)
+  }
+
+
+
+
+
+
+
+--
+
+
 charToBlockers : Char -> BlockerDirections Bool
 charToBlockers char =
     case char of
         '#' ->
-            { positiveX = True
-            , negativeX = True
-            , positiveY = True
-            , negativeY = True
+            { positiveDeltaX = True
+            , negativeDeltaX = True
+            , positiveDeltaY = True
+            , negativeDeltaY = True
             }
 
         '=' ->
-            { positiveX = False
-            , negativeX = False
-            , positiveY = True
-            , negativeY = True
+            { positiveDeltaX = False
+            , negativeDeltaX = False
+            , positiveDeltaY = True
+            , negativeDeltaY = True
             }
 
         '^' ->
-            { positiveX = False
-            , negativeX = False
-            , positiveY = False
-            , negativeY = True
+            { positiveDeltaX = False
+            , negativeDeltaX = False
+            , positiveDeltaY = False
+            , negativeDeltaY = True
             }
 
         _ ->
-            { positiveX = False
-            , negativeX = False
-            , positiveY = False
-            , negativeY = False
+            { positiveDeltaX = False
+            , negativeDeltaX = False
+            , positiveDeltaY = False
+            , negativeDeltaY = False
             }
 
 
@@ -118,8 +139,8 @@ getBlockers getter x y =
 
 hasBlockerAlong : BlockerDirections (Int -> Int -> Bool)
 hasBlockerAlong =
-    { positiveX = getBlockers .positiveX
-    , negativeX = getBlockers .negativeX
-    , positiveY = getBlockers .positiveY
-    , negativeY = getBlockers .negativeY
+    { positiveDeltaX = getBlockers .positiveDeltaX
+    , negativeDeltaX = getBlockers .negativeDeltaX
+    , positiveDeltaY = getBlockers .positiveDeltaY
+    , negativeDeltaY = getBlockers .negativeDeltaY
     }
