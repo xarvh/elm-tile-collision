@@ -1,6 +1,7 @@
 module Scene exposing (..)
 
 import Circle
+import Dict exposing (Dict)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector2 as Vec2 exposing (Vec2, vec2)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
@@ -8,7 +9,7 @@ import Math.Vector4 as Vec4 exposing (Vec4, vec4)
 import Obstacle
 import Quad
 import Set exposing (Set)
-import TileCollision exposing (Tile, Vector)
+import TileCollision exposing (BlockerDirections, Tile, Vector)
 import WebGL exposing (Entity, Mesh, Shader)
 
 
@@ -21,6 +22,81 @@ mobWidth =
 
 mobHeight =
     1.0
+
+
+tilemapSrc =
+    """
+
+     ^^    ====
+###       ##
+###############
+
+"""
+
+
+
+--
+
+
+charToBlockers : Char -> BlockerDirections Bool
+charToBlockers char =
+    case char of
+        '#' ->
+            { positiveX = True
+            , negativeX = True
+            , positiveY = True
+            , negativeY = True
+            }
+
+        '=' ->
+            { positiveX = False
+            , negativeX = False
+            , positiveY = True
+            , negativeY = True
+            }
+
+        '^' ->
+            { positiveX = False
+            , negativeX = False
+            , positiveY = False
+            , negativeY = True
+            }
+
+        _ ->
+            { positiveX = False
+            , negativeX = False
+            , positiveY = False
+            , negativeY = False
+            }
+
+
+type alias Tilemap =
+    Dict ( Int, Int ) Char
+
+
+tilemap : Tilemap
+tilemap =
+    tilemapSrc
+        |> String.split "\n"
+        |> List.indexedMap rowToTuple
+        |> List.concat
+        |> Dict.fromList
+
+
+rowToTuple : Int -> String -> List ( ( Int, Int ), Char )
+rowToTuple invertedY row =
+    let
+        y =
+            3 - invertedY
+
+        charToTuple index char =
+            ( ( index - 8, y )
+            , char
+            )
+    in
+    row
+        |> String.toList
+        |> List.indexedMap charToTuple
 
 
 
@@ -48,23 +124,26 @@ periodHarmonic time phase period =
 -- Model
 
 
-obstacles : List Tile
-obstacles =
-    [ { x = 0, y = 0 }
-    , { x = 0, y = -1 }
-    , { x = 1, y = 1 }
-    , { x = -4, y = -4 }
-    , { x = 4, y = 4 }
-    ]
+getBlockers : (BlockerDirections Bool -> Bool) -> Int -> Int -> Bool
+getBlockers getter x y =
+    case Dict.get ( x, y ) tilemap of
+        Nothing ->
+            False
+
+        Just char ->
+            char
+                |> charToBlockers
+                |> getter
 
 
-
+hasBlockerAlong : BlockerDirections (Int -> Int -> Bool)
 hasBlockerAlong =
-  { positiveX = (\tileX tileY -> List.any (\tile -> tile == Tile tileX tileY) obstacles)
-  , negativeX = (\tileX tileY -> List.any (\tile -> tile == Tile tileX tileY) obstacles)
-  , positiveY = (\tileX tileY -> List.any (\tile -> tile == Tile tileX tileY) obstacles)
-  , negativeY = (\tileX tileY -> List.any (\tile -> tile == Tile tileX tileY) obstacles)
-  }
+    { positiveX = getBlockers .positiveX
+    , negativeX = getBlockers .negativeX
+    , positiveY = getBlockers .positiveY
+    , negativeY = getBlockers .negativeY
+    }
+
 
 
 -- Entities
@@ -86,16 +165,17 @@ entities { cameraToViewport, mousePosition, clickPosition, time } =
                 |> Mat4.scale3 0.2 0.2 1
 
         obsEntities =
-            obstacles
+            tilemap
+                |> Dict.toList
                 |> List.map (obstacleToEntity worldToViewport)
+                |> List.concat
 
         dots =
             [ mob worldToViewport clickPosition (vec3 0 0 1)
             ]
 
-
         collisions =
-            TileCollision.collisionsAlongY
+            TileCollision.collisionsAlongX
                 hasBlockerAlong
                 mobWidth
                 (Vec2.toRecord clickPosition)
@@ -145,9 +225,27 @@ dot worldToViewport position color =
     Circle.entity entityToViewport color
 
 
-obstacleToEntity : Mat4 -> Tile -> Entity
-obstacleToEntity worldToViewport { x, y } =
-    worldToViewport
-        |> Mat4.translate3 (toFloat x) (toFloat y) 0
-        |> Mat4.rotate (pi / 2) (vec3 0 0 1)
-        |> Obstacle.entity
+obstacleToEntity : Mat4 -> ( ( Int, Int ), Char ) -> List Entity
+obstacleToEntity worldToViewport ( ( x, y ), char ) =
+    let
+        blockers =
+            charToBlockers char
+
+        anglesAndBlockers =
+            [ ( .negativeY, 0 )
+            , ( .positiveY, pi )
+            , ( .positiveX, pi / 2 )
+            , ( .negativeX, -pi / 2 )
+            ]
+
+        stuff ( getter, angle ) =
+            if getter blockers then
+                worldToViewport
+                    |> Mat4.translate3 (toFloat x) (toFloat y) 0
+                    |> Mat4.rotate angle (vec3 0 0 1)
+                    |> Obstacle.entity
+                    |> Just
+            else
+                Nothing
+    in
+    List.filterMap stuff anglesAndBlockers

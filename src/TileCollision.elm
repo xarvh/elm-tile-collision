@@ -65,6 +65,11 @@ coordinateToContainingTile x =
     floor (x + 0.5)
 
 
+collisions : BlockerDirections (Int -> Int -> Bool) -> { width : Float, height : Float } -> Vector -> Vector -> Maybe Collision
+collisions hasBlockerAlong size start end =
+    Nothing
+
+
 {-|
 
     Equation of the line connecting Start with End
