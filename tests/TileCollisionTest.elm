@@ -16,7 +16,7 @@ fuzzVector =
 
 fuzzSize : Fuzzer Size
 fuzzSize =
-    Fuzz.map2 Size (Fuzz.intRange 0 100) (Fuzz.intRange 0 100)
+    Fuzz.map2 Size (Fuzz.intRange 1 100) (Fuzz.intRange 1 100)
 
 
 type alias TestParams =
