@@ -1,29 +1,16 @@
 {
-    "type": "application",
-    "source-directories": [
-        "src"
+    "type": "package",
+    "name": "xarvh/elm-tile-collision",
+    "license": "BSD-3-Clause",
+    "summary": "Elm Library for AABB vs tile grid collision response",
+    "version": "1.0.0",
+    "exposed-modules": [
+        "TileCollision"
     ],
-    "elm-version": "0.19.0",
+    "elm-version": "0.19.0 <= v < 0.20.0",
     "dependencies": {
-        "direct": {
-            "elm/browser": "1.0.0",
-            "elm/core": "1.0.0",
-            "elm/html": "1.0.0",
-            "elm/json": "1.0.0",
-            "elm/time": "1.0.0",
-            "elm-community/list-extra": "8.0.0",
-            "elm-explorations/linear-algebra": "1.0.3",
-            "elm-explorations/test": "1.2.0",
-            "elm-explorations/webgl": "1.0.1"
-        },
-        "indirect": {
-            "elm/random": "1.0.0",
-            "elm/url": "1.0.0",
-            "elm/virtual-dom": "1.0.0"
-        }
+        "elm/core": "1.0.0 <= v < 2.0.0",
+        "elm-community/list-extra": "8.0.0 <= v < 9.0.0"
     },
-    "test-dependencies": {
-        "direct": {},
-        "indirect": {}
-    }
+    "test-dependencies": {}
 }
