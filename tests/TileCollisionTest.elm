@@ -19,35 +19,21 @@ fuzzSize =
     Fuzz.map2 Size (Fuzz.intRange 1 100) (Fuzz.intRange 1 100)
 
 
-type alias TestParams =
-    { infiniteWallX : Int
-    , mobSize : Size
-    , s : Vector
-    , end : Vector
-    }
-
-
-fuzzTestParams : Fuzzer TestParams
-fuzzTestParams =
-    Fuzz.map4 TestParams
-        (Fuzz.intRange -100 100)
-        fuzzSize
-        fuzzVector
-        fuzzVector
-
-
 
 --
 
 
-suite : Test
-suite =
-    Test.fuzz fuzzTestParams "Should not pass walls" <|
-        \params ->
+shouldNotPassWalls : Test
+shouldNotPassWalls =
+    let
+        one =
+            Fuzz.map2 Tuple.pair
+                (Fuzz.intRange -100 100)
+                fuzzSize
+    in
+    Test.fuzz3 one fuzzVector fuzzVector "Should not pass walls" <|
+        \( infiniteWallX, mobSize ) s end ->
             let
-                { infiniteWallX, mobSize, s, end } =
-                    params
-
                 tileSizeInPixels =
                     16
 
@@ -80,3 +66,52 @@ suite =
             in
             (fix.x + mobSize.halfWidth)
                 |> Expect.atMost wallBlockerX
+
+
+shouldNotLeaveACorral : Test
+shouldNotLeaveACorral =
+    Test.fuzz3 (Fuzz.intRange 2 20) fuzzVector fuzzVector "Should not leave a corral" <|
+        \corralRadius start end ->
+            let
+                tileSizeInPixels =
+                    8
+
+                mobSize =
+                    { halfWidth = 2
+                    , halfHeight = 2
+                    }
+
+                -- find the tile that contains the start vector
+                centerTileX =
+                    TileCollision.tilesRangeInclusive tileSizeInPixels start.x start.x
+                        |> List.head
+                        |> Maybe.withDefault 0
+
+                centerTileY =
+                    TileCollision.tilesRangeInclusive tileSizeInPixels start.y start.y
+                        |> List.head
+                        |> Maybe.withDefault 0
+
+                hasBlockerAlong =
+                    { positiveDeltaX = \x y -> x - centerTileX > corralRadius
+                    , negativeDeltaX = \x y -> x - centerTileX < -corralRadius
+                    , positiveDeltaY = \x y -> y - centerTileY > corralRadius
+                    , negativeDeltaY = \x y -> y - centerTileY < -corralRadius
+                    }
+
+                fix =
+                    TileCollision.collide
+                        { hasBlockerAlong = hasBlockerAlong
+                        , tileSize = tileSizeInPixels
+                        , mobSize = mobSize
+                        , start = start
+                        , end = end
+                        }
+                        |> Maybe.map .fix
+                        |> Maybe.withDefault end
+
+                manhattanDistance a b =
+                  abs (a.x - b.x) + abs (a.y - b.y)
+            in
+            manhattanDistance fix start
+                |> Expect.atMost (2 * (corralRadius + 1) * tileSizeInPixels)

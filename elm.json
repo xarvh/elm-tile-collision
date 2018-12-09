@@ -1,8 +1,8 @@
 {
     "type": "package",
     "name": "xarvh/elm-tile-collision",
-    "license": "BSD-3-Clause",
     "summary": "Elm Library for AABB vs tile grid collision response",
+    "license": "BSD-3-Clause",
     "version": "1.0.0",
     "exposed-modules": [
         "TileCollision"
@@ -12,5 +12,7 @@
         "elm/core": "1.0.0 <= v < 2.0.0",
         "elm-community/list-extra": "8.0.0 <= v < 9.0.0"
     },
-    "test-dependencies": {}
+    "test-dependencies": {
+        "elm-explorations/test": "1.2.0 <= v < 2.0.0"
+    }
 }
