@@ -1,4 +1,12 @@
-module TileCollision exposing (..)
+module TileCollision
+    exposing
+        ( Args
+        , BlockerDirections
+        , Collision
+        , Tile
+        , Vector
+        , collide
+        )
 
 import List.Extra
 
