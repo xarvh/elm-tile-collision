@@ -90,7 +90,7 @@ charToBlockers char =
 
         'H' ->
             { positiveDeltaX = True
-            , negativeDeltaX = False
+            , negativeDeltaX = True
             , positiveDeltaY = False
             , negativeDeltaY = False
             }

@@ -59,7 +59,8 @@ entities { cameraToViewport, mousePosition, clickPosition, time } =
             ]
 
         maybeCollision =
-            Decompose.leftToRightBlocker
+            Decompose.rightToLeftBlocker
+            --Decompose.leftToRightBlocker
                 { relativeStart = Vec2.toRecord clickPosition
                 , relativeEnd = Vec2.toRecord mousePosition
                 , halfWidth = toFloat mobSize.halfWidth / toFloat tileSize
@@ -155,7 +156,8 @@ obstacleToEntity worldToViewport ( ( x, y ), char ) =
         stuff ( getter, angle ) =
             if getter blockers then
                 worldToViewport
-                    |> Mat4.translate3 (toFloat x + 0.5) (toFloat y + 0.5) 0
+                    |> Mat4.translate3 (toFloat x) (toFloat y) 0
+                    --|> Mat4.translate3 (toFloat x + 0.5) (toFloat y + 0.5) 0
                     |> Mat4.rotate angle (vec3 0 0 1)
                     |> Obstacle.entity
                     |> Just
