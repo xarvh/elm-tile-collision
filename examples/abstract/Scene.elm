@@ -1,6 +1,7 @@
 module Scene exposing (..)
 
 import Circle
+import Decompose
 import Dict exposing (Dict)
 import Game exposing (..)
 import Math.Matrix4 as Mat4 exposing (Mat4)
@@ -10,7 +11,6 @@ import Math.Vector4 as Vec4 exposing (Vec4, vec4)
 import Obstacle
 import Quad
 import Set exposing (Set)
-import TileCollision exposing (BlockerDirections, Tile, Vector)
 import WebGL exposing (Entity, Mesh, Shader)
 
 
@@ -55,15 +55,16 @@ entities { cameraToViewport, mousePosition, clickPosition, time } =
 
         mobEntity =
             [ mob worldToViewport clickPosition (vec3 0 0 1)
+            , mob worldToViewport mousePosition (vec3 1 0 0)
             ]
 
         maybeCollision =
-            TileCollision.collide
-                { hasBlockerAlong = Game.hasBlockerAlong
-                , tileSize = Game.tileSize
-                , mobSize = Game.mobSize
-                , start = vec2ToVector clickPosition
-                , end = vec2ToVector mousePosition
+            Decompose.leftToRightBlocker
+                { relativeStart = Vec2.toRecord clickPosition
+                , relativeEnd = Vec2.toRecord mousePosition
+                , halfWidth = toFloat mobSize.halfWidth / toFloat tileSize
+                , halfHeight = toFloat mobSize.halfHeight / toFloat tileSize
+                , minimumDistance = 0.01
                 }
 
         collisionEntities =
@@ -72,16 +73,17 @@ entities { cameraToViewport, mousePosition, clickPosition, time } =
                     []
 
                 Just collision ->
-                    collision.tiles
-                        |> List.map (\tile -> tileColor worldToViewport tile (vec3 0.5 0 0))
-                        |> (::) (dot worldToViewport (vectorToVec2 collision.point) 2 (vec3 1 0 0))
-                        |> (::) (mob worldToViewport (vectorToVec2 collision.fix) (vec3 0 1 0))
+                    [ mob worldToViewport (Vec2.fromRecord collision.fix) (vec3 0 1 0) ]
 
         blockers =
-            Game.tilemap
-                |> Dict.toList
-                |> List.map (obstacleToEntity worldToViewport)
-                |> List.concat
+            obstacleToEntity worldToViewport ( ( 0, 0 ), 'H' )
+
+        {-
+           Game.tilemap
+               |> Dict.toList
+               |> List.map (obstacleToEntity worldToViewport)
+               |> List.concat
+        -}
     in
     List.concat
         [ blockers
@@ -119,19 +121,22 @@ dot worldToViewport position size color =
     Circle.entity entityToViewport color
 
 
-tileColor : Mat4 -> Tile -> Vec3 -> Entity
-tileColor worldToViewport tile color =
-    let
-        { x, y } =
-            tile
-                |> tileCenter
-                |> Vec2.toRecord
 
-        entityToViewport =
-            worldToViewport
-                |> Mat4.translate3 x y 0
-    in
-    Quad.entity entityToViewport color
+{-
+   tileColor : Mat4 -> Tile -> Vec3 -> Entity
+   tileColor worldToViewport tile color =
+       let
+           { x, y } =
+               tile
+                   |> tileCenter
+                   |> Vec2.toRecord
+
+           entityToViewport =
+               worldToViewport
+                   |> Mat4.translate3 x y 0
+       in
+       Quad.entity entityToViewport color
+-}
 
 
 obstacleToEntity : Mat4 -> ( ( Int, Int ), Char ) -> List Entity

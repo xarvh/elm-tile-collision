@@ -88,6 +88,13 @@ charToBlockers char =
             , negativeDeltaY = True
             }
 
+        'H' ->
+            { positiveDeltaX = True
+            , negativeDeltaX = False
+            , positiveDeltaY = False
+            , negativeDeltaY = False
+            }
+
         _ ->
             { positiveDeltaX = False
             , negativeDeltaX = False
