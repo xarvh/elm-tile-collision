@@ -1,5 +1,32 @@
 module Decompose exposing (..)
 
+import List.Extra
+
+
+-- Vec
+
+
+type alias Vec =
+    { x : Float
+    , y : Float
+    }
+
+
+distanceSquared : Vec -> Vec -> Float
+distanceSquared a b =
+    let
+        dx =
+            a.x - b.x
+
+        dy =
+            a.y - b.y
+    in
+    dx * dx + dy * dy
+
+
+
+--
+
 
 type alias RowColumn =
     { row : Int
@@ -9,18 +36,17 @@ type alias RowColumn =
 
 
 -- Sweep
+{- Find all tiles swept by a horizontal segment whose center moves from start to end.
 
+   If the AABB is moving right, consider only the tiles swept by the right side of the AABB
+   ...
 
-{-| Find all tiles swept by a horizontal segment whose center moves from start to end.
-The resulting tiles will be ordered by time of impact.
-sweepHorizontalSegment : AabbTrajectory -> List RowColumn
-sweepHorizontalSegment { start, end, tileSize } =
-Debug.todo ""
+   The resulting tiles will be ordered by time of impact.
+   sweepHorizontalSegment : AabbTrajectory -> List RowColumn
+   sweepHorizontalSegment { start, end, tileSize } =
+   Debug.todo ""
+
 -}
-type alias Vec =
-    { x : Float
-    , y : Float
-    }
 
 
 {-| Same as above, only `start` and `end` are given relative to the tile center.
@@ -48,6 +74,31 @@ type alias Collision geometry =
 -}
 type alias TileCollider geometry =
     RelativeAabbTrajectory -> Maybe (Collision geometry)
+
+
+combine : List (TileCollider a) -> TileCollider a
+combine colliders =
+    let
+        combined : TileCollider a
+        combined input =
+            colliders
+                |> List.filterMap (\collider -> collider input)
+                |> List.Extra.minimumBy (\collision -> distanceSquared input.relativeStart collision.point)
+    in
+    combined
+
+
+mapCollision : (a -> b) -> Collision a -> Collision b
+mapCollision f collision =
+    { geometry = f collision.geometry
+    , point = collision.point
+    , fix = collision.fix
+    }
+
+
+map : (a -> b) -> TileCollider a -> TileCollider b
+map f collider =
+    collider >> Maybe.map (mapCollision f)
 
 
 tileColliderFlipX : TileCollider a -> TileCollider a
@@ -145,3 +196,16 @@ leftToRightBlocker { relativeStart, relativeEnd, halfWidth, halfHeight, minimumD
 rightToLeftBlocker : TileCollider ()
 rightToLeftBlocker =
     tileColliderFlipX leftToRightBlocker
+
+
+type Horizontal
+    = LeftToRight
+    | RightToLeft
+
+
+horizontalBlocker : TileCollider Horizontal
+horizontalBlocker =
+    combine
+        [ map (\() -> LeftToRight) leftToRightBlocker
+        , map (\() -> RightToLeft) rightToLeftBlocker
+        ]
