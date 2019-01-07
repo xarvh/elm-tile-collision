@@ -24,6 +24,23 @@ distanceSquared a b =
     dx * dx + dy * dy
 
 
+vecInvertX : Vec -> Vec
+vecInvertX v =
+    { v | x = -v.x }
+
+
+vecInvertY : Vec -> Vec
+vecInvertY v =
+    { v | y = -v.y }
+
+
+vecFlipXY : Vec -> Vec
+vecFlipXY v =
+    { x = v.y
+    , y = v.x
+    }
+
+
 
 --
 
@@ -60,10 +77,22 @@ type alias RelativeAabbTrajectory =
     }
 
 
+
+--
+
+
 type alias Collision geometry =
     { geometry : geometry
     , fix : Vec
     , point : Vec
+    }
+
+
+geometryMap : (a -> b) -> Collision a -> Collision b
+geometryMap f collision =
+    { geometry = f collision.geometry
+    , point = collision.point
+    , fix = collision.fix
     }
 
 
@@ -88,42 +117,65 @@ combine colliders =
     combined
 
 
-mapCollision : (a -> b) -> Collision a -> Collision b
-mapCollision f collision =
-    { geometry = f collision.geometry
-    , point = collision.point
-    , fix = collision.fix
-    }
-
-
 map : (a -> b) -> TileCollider a -> TileCollider b
 map f collider =
-    collider >> Maybe.map (mapCollision f)
+    collider >> Maybe.map (geometryMap f)
 
 
-tileColliderFlipX : TileCollider a -> TileCollider a
-tileColliderFlipX original =
+{-| `forwards` and `backwards` can be any two functions that satisfy `forwards >> backwards == identity`
+-}
+transform : (Vec -> Vec) -> (Vec -> Vec) -> (a -> b) -> TileCollider a -> TileCollider b
+transform forwards backwards geo collider =
     let
-        vecFlipX : Vec -> Vec
-        vecFlipX v =
-            { v | x = -v.x }
-
-        flipped : TileCollider a
-        flipped input =
+        transformed : TileCollider b
+        transformed input =
             { input
-                | relativeStart = vecFlipX input.relativeStart
-                , relativeEnd = vecFlipX input.relativeEnd
+                | relativeStart = forwards input.relativeStart
+                , relativeEnd = forwards input.relativeEnd
             }
-                |> original
+                |> collider
                 |> Maybe.map
                     (\collision ->
-                        { collision
-                            | fix = vecFlipX collision.fix
-                            , point = vecFlipX collision.point
+                        { geometry = geo collision.geometry
+                        , fix = backwards collision.fix
+                        , point = backwards collision.point
                         }
                     )
     in
-    flipped
+    transformed
+
+
+invertX : TileCollider a -> TileCollider a
+invertX =
+    transform vecInvertX vecInvertX identity
+
+
+invertY : TileCollider a -> TileCollider a
+invertY =
+    transform vecInvertY vecInvertY identity
+
+
+flipXY : TileCollider a -> TileCollider a
+flipXY collider =
+    let
+        transformed : TileCollider a
+        transformed input =
+            { input
+                | relativeStart = vecFlipXY input.relativeStart
+                , relativeEnd = vecFlipXY input.relativeEnd
+                , halfWidth = input.halfHeight
+                , halfHeight = input.halfWidth
+            }
+                |> collider
+                |> Maybe.map
+                    (\collision ->
+                        { geometry = {- TODO use a map? -} collision.geometry
+                        , fix = vecFlipXY collision.fix
+                        , point = vecFlipXY collision.point
+                        }
+                    )
+    in
+    transformed
 
 
 
@@ -195,17 +247,24 @@ leftToRightBlocker { relativeStart, relativeEnd, halfWidth, halfHeight, minimumD
 
 rightToLeftBlocker : TileCollider ()
 rightToLeftBlocker =
-    tileColliderFlipX leftToRightBlocker
+    invertX leftToRightBlocker
 
 
-type Horizontal
-    = LeftToRight
-    | RightToLeft
+type DeltaSign
+    = Positive
+    | Negative
 
 
-horizontalBlocker : TileCollider Horizontal
-horizontalBlocker =
+type SquareBlocker
+    = X DeltaSign
+    | Y DeltaSign
+
+
+squareBlocker : TileCollider SquareBlocker
+squareBlocker =
     combine
-        [ map (\() -> LeftToRight) leftToRightBlocker
-        , map (\() -> RightToLeft) rightToLeftBlocker
+        [ map (\() -> X Positive) leftToRightBlocker
+        , map (\() -> X Negative) rightToLeftBlocker
+        , map (\() -> Y Positive) (flipXY leftToRightBlocker)
+        , map (\() -> Y Negative) (flipXY rightToLeftBlocker)
         ]

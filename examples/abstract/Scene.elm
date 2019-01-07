@@ -59,7 +59,7 @@ entities { cameraToViewport, mousePosition, clickPosition, time } =
             ]
 
         maybeCollision =
-            Decompose.rightToLeftBlocker
+            Decompose.squareBlocker
             --Decompose.leftToRightBlocker
                 { relativeStart = Vec2.toRecord clickPosition
                 , relativeEnd = Vec2.toRecord mousePosition
