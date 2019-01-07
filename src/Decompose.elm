@@ -52,21 +52,70 @@ type alias RowColumn =
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 -- Sweep
 {- Find all tiles swept by a horizontal segment whose center moves from start to end.
 
    If the AABB is moving right, consider only the tiles swept by the right side of the AABB
    ...
 
-   The resulting tiles will be ordered by time of impact.
-   sweepHorizontalSegment : AabbTrajectory -> List RowColumn
-   sweepHorizontalSegment { start, end, tileSize } =
-   Debug.todo ""
-
 -}
 
+coordinateToTile : Float -> Int
+coordinateToTile =
+  round
 
-{-| Same as above, only `start` and `end` are given relative to the tile center.
+
+
+tileRange : Float -> Float -> Float -> List Int
+tileRange start end half =
+  if start < end then
+    List.range
+      (coordinateToTile <| start + half)
+      (coordinateToTile <| end + half)
+  else
+    List.range
+      (coordinateToTile <| end - half)
+      (coordinateToTile <| start - half)
+
+
+
+
+
+tiles =
+  case (dx, dy) of
+    (0, 0) ->
+      []
+    (_, 0) ->
+      tileRange s.x e.x mob.halfWidth |> map (withY s.y)
+
+    (0, _) ->
+      tileRange s.y e.y mob.halfHeight |> map (withX s.x)
+
+    (_, _) ->
+      ...
+
+
+
+
+
+
+
+
+
+{-|
 -}
 type alias RelativeAabbTrajectory =
     { relativeStart : Vec
@@ -176,6 +225,9 @@ flipXY collider =
                     )
     in
     transformed
+
+
+
 
 
 
