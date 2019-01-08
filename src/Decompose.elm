@@ -18,27 +18,15 @@ type alias RowColumn =
     }
 
 
-type alias RawCollision geometry =
+type alias Collision geometry =
     { geometry : geometry
+    , impactPoint : Vec
+    , aabbPositionAtImpact : Vec
     , fix : Vec
-    , point : Vec
+    , tile : RowColumn
+
+    -- distance between AABB's position at start and at impact
     , distanceSquared : Float
-    }
-
-
-type alias FinalCollision geometry =
-    { tile : RowColumn
-    , point : Vec2
-    , geometry : geometry
-    }
-
-
-type alias AabbTrajectory =
-    { start : Vec
-    , end : Vec
-    , width : Float
-    , height : Float
-    , minimumDistance : Float
     }
 
 
@@ -49,6 +37,26 @@ type alias RelativeAabbTrajectory =
     , halfHeight : Float
     , minimumDistance : Float
     }
+
+
+type alias AbsoluteAabbTrajectory =
+    { start : Vec
+    , end : Vec
+    , width : Float
+    , height : Float
+    , minimumDistance : Float
+    }
+
+
+{-| Collider
+
+Defines how a certain tile type reacts to an AABB bumping into it
+
+`start` and `end` of the AabbTrajectory are
+
+-}
+type alias TileCollider geometry =
+    RelativeAabbTrajectory -> Maybe (Collision geometry)
 
 
 
@@ -88,11 +96,14 @@ vecFlipXY v =
 -- Collision
 
 
-geometryMap : (a -> b) -> Collision a -> Collision b
-geometryMap f collision =
-    { geometry = f collision.geometry
-    , point = collision.point
-    , fix = collision.fix
+collisionMap : (a -> b) -> (Vec -> Vec) -> Collision a -> Collision b
+collisionMap transformGeometry transformVec c =
+    { geometry = transformGeometry c.geometry
+    , impactPoint = transformVec c.impactPoint
+    , aabbPositionAtImpact = transformVec c.aabbPositionAtImpact
+    , fix = transformVec c.fix
+    , tile = c.tile
+    , distanceSquared = c.distanceSquared
     }
 
 
@@ -124,108 +135,134 @@ tileRange start end half =
             (coordinateToTile <| start - half)
 
 
+tileAdd : RowColumn -> Vec -> Vec
+tileAdd tile vec =
+    { x = vec.x + toFloat tile.column
+    , y = vec.y + toFloat tile.row
+    }
 
--- Sweep
+
+tileSub : RowColumn -> Vec -> Vec
+tileSub tile vec =
+    { x = vec.x - toFloat tile.column
+    , y = vec.y - toFloat tile.row
+    }
 
 
-{-| Find all tiles swept by a horizontal segment whose center moves from start to end.
+
+-- Collisions
+
+
+relativeToAbsoluteCollision : Collision geometry -> Collision geometry
+relativeToAbsoluteCollision relative =
+    { relative
+        | impactPoint = tileAdd relative.tile relative.impactPoint
+        , aabbPositionAtImpact = tileAdd relative.tile relative.aabbPositionAtImpact
+        , fix = tileAdd relative.tile relative.fix
+    }
+
+
+
+-- Trajectories
+
+
+absoluteToRelativeTrajectory : RowColumn -> AbsoluteAabbTrajectory -> RelativeAabbTrajectory
+absoluteToRelativeTrajectory tile trajectory =
+    { relativeStart = tileSub tile trajectory.start
+    , relativeEnd = tileSub tile trajectory.end
+    , halfWidth = trajectory.width / 2
+    , halfHeight = trajectory.height / 2
+    , minimumDistance = trajectory.minimumDistance
+    }
+
+
+{-| Sweep
+
+Find all tiles swept by a horizontal segment whose center moves from start to end.
 
 If the AABB is moving right, consider only the tiles swept by the right side of the AABB
 ...
 
 -}
-sweep : AabbTrajectory -> List RowColumn
-sweep t =
+sweep : AbsoluteAabbTrajectory -> List RowColumn
+sweep { start, end, width, height } =
     let
         halfWidth =
-            t.width / 2
+            width / 2
 
         halfHeight =
-            t.height / 2
+            height / 2
+
+        hasDx =
+            start.x /= end.x
+
+        hasDy =
+            start.y /= end.y
     in
-    case ( t.start.x - t.end.x, t.start.y - t.end.y ) of
-        ( 0, 0 ) ->
+    case ( hasDx, hasDy ) of
+        ( False, False ) ->
             []
 
-        ( _, 0 ) ->
-            tileRange s.x e.x halfWidth
-                |> map (\x -> { column = x, row = coordinateToTile s.y })
+        ( True, False ) ->
+            tileRange start.x end.x halfWidth
+                |> List.map (\x -> { column = x, row = coordinateToTile start.y })
 
-        ( 0, _ ) ->
-            tileRange s.y e.y halfHeight
-                |> map (\y -> { column = coordinateToTile s.x, row = y })
+        ( False, True ) ->
+            tileRange start.y end.y halfHeight
+                |> List.map (\y -> { column = coordinateToTile start.x, row = y })
 
-        ( _, _ ) ->
+        ( True, True ) ->
             List.Extra.lift2
                 (\x y -> { column = x, row = y })
-                (tileRange s.x e.x halfWidth)
-                (tileRange s.y e.y halfHeight)
+                (tileRange start.x end.x halfWidth)
+                (tileRange start.y end.y halfHeight)
 
 
-type alias Pair g =
-    ( RowColumn, RawCollision g )
+
+-- Collide
 
 
-recursiveCollide : (RowColumn -> TileCollider geometry) -> AabbTrajectory -> List (Pair geometry) -> List (Pair geometry)
-recursiveCollide getCollider t pairs =
+recursiveCollide : (RowColumn -> TileCollider geometry) -> AbsoluteAabbTrajectory -> List (Collision geometry) -> List (Collision geometry)
+recursiveCollide getCollider trajectory pairs =
     let
-        testCollision : RowColumn -> Maybe Collision
+        testCollision : RowColumn -> Maybe (Collision geometry)
         testCollision tile =
-            { relativeStart = vectorRelativeToTile tile t.start
-            , relativeEnd = vectorRelativeToTile tile t.end
-            , halfWidth = t.width / 2
-            , halfHeight = t.height / 2
-            , minimumDistance = t.minimumDistance
-            }
+            trajectory
+                |> absoluteToRelativeTrajectory tile
                 |> getCollider tile
-                |> Maybe.map (makeAbsolute tile >> Tuple.pair tile)
+                |> Maybe.map (\collision -> { collision | tile = tile })
 
+        maybeCollision : Maybe (Collision geometry)
         maybeCollision =
-            sweep t
+            sweep trajectory
                 |> List.filterMap testCollision
-                |> List.minimumBy (Tuple.second >> .distanceSquared)
+                |> List.Extra.minimumBy .distanceSquared
+                |> Maybe.map relativeToAbsoluteCollision
     in
     case maybeCollision of
         Nothing ->
             pairs
 
-        Just ( tile, collision ) ->
-            pairs
-                |> (::) ( tile, collison )
-                |> collide getCollider
-                    { t
-                        | start = collision.aabbAtCollision
+        Just collision ->
+            if List.length pairs > 10 then
+                collision :: pairs
+            else
+                recursiveCollide
+                    getCollider
+                    { trajectory
+                        | start = collision.aabbPositionAtImpact
                         , end = collision.fix
                     }
+                    (collision :: pairs)
+
+
+collide : (RowColumn -> TileCollider geometry) -> AbsoluteAabbTrajectory -> List (Collision geometry)
+collide getCollider trajectory =
+    recursiveCollide getCollider trajectory []
 
 
 
--- type alias Result geometry ={ fix : Vec2, collisions : List (Collision2 geometry) }
-
-
-collide : (RowColumn -> TileCollider geometry) -> AabbTrajectory -> { fix : Vec, collisions : List (FinalCollision geometry) }
-collide getCollider t =
-    case recursiveCollide getCollider t [] of
-        [] ->
-            { fix = t.end
-            , collisions = []
-            }
-
-        head :: tail ->
-            { fix = head.fix
-            , collisions =
-                (head :: tail)
-                    |> List.map pairToFinalCollision
-            }
-
-
-{-| Defines how a certain tile type reacts to an AABB bumping into it
-
-`start` and `end` of the AabbTrajectory are
-
--}
-type alias TileCollider geometry =
-    RelativeAabbTrajectory -> Maybe (Collision geometry)
+-- Colliders
 
 
 combine : List (TileCollider a) -> TileCollider a
@@ -242,7 +279,7 @@ combine colliders =
 
 map : (a -> b) -> TileCollider a -> TileCollider b
 map f collider =
-    collider >> Maybe.map (geometryMap f)
+    collider >> Maybe.map (collisionMap f identity)
 
 
 {-| `forwards` and `backwards` can be any two functions that satisfy `forwards >> backwards == identity`
@@ -257,14 +294,7 @@ transform forwards backwards geo collider =
                 , relativeEnd = forwards input.relativeEnd
             }
                 |> collider
-                |> Maybe.map
-                    (\collision ->
-                        { geometry = geo collision.geometry
-                        , fix = backwards collision.fix
-                        , point = backwards collision.point
-                        , distanceSquared = collision.distanceSquared
-                        }
-                    )
+                |> Maybe.map (collisionMap geo backwards)
     in
     transformed
 
@@ -291,14 +321,7 @@ flipXY collider =
                 , halfHeight = input.halfWidth
             }
                 |> collider
-                |> Maybe.map
-                    (\collision ->
-                        { geometry = {- TODO use a map? -} collision.geometry
-                        , fix = vecFlipXY collision.fix
-                        , point = vecFlipXY collision.point
-                        , distanceSquared = collision.distanceSquared
-                        }
-                    )
+                |> Maybe.map (collisionMap identity vecFlipXY)
     in
     transformed
 
@@ -307,7 +330,7 @@ flipXY collider =
 -- Empty block
 
 
-emptyTile : TileCollider Never
+emptyTile : TileCollider a
 emptyTile aabbTrajectory =
     Nothing
 
@@ -364,9 +387,11 @@ leftToRightBlocker { relativeStart, relativeEnd, halfWidth, halfHeight, minimumD
             in
             Just
                 { geometry = ()
+                , impactPoint = point
+                , aabbPositionAtImpact = point -- TODO this is wrong
                 , fix = { relativeEnd | x = max relativeStart.x fixedX }
-                , point = point
                 , distanceSquared = distanceSquared point relativeStart
+                , tile = { row = 0, column = 0 }
                 }
 
 

@@ -58,18 +58,27 @@ entities { cameraToViewport, mousePosition, clickPosition, time } =
             , mob worldToViewport mousePosition (vec3 1 0 0)
             ]
 
-        maybeCollision =
-            Decompose.squareBlocker
-            --Decompose.leftToRightBlocker
-                { relativeStart = Vec2.toRecord clickPosition
-                , relativeEnd = Vec2.toRecord mousePosition
-                , halfWidth = toFloat mobSize.halfWidth / toFloat tileSize
-                , halfHeight = toFloat mobSize.halfHeight / toFloat tileSize
+        getCollider { row, column } =
+            case Dict.get ( column, row ) Game.tilemap of
+                Just '#' ->
+                    Decompose.squareBlocker
+
+                _ ->
+                    Decompose.emptyTile
+
+        collisions =
+            Decompose.collide
+                getCollider
+                { start = Vec2.toRecord clickPosition
+                , end = Vec2.toRecord mousePosition
+                , width = 2 * toFloat mobSize.halfWidth / toFloat tileSize
+                , height = 2 * toFloat mobSize.halfHeight / toFloat tileSize
                 , minimumDistance = 0.01
                 }
+                |> Debug.log ""
 
         collisionEntities =
-            case maybeCollision of
+            case List.head collisions of
                 Nothing ->
                     []
 
@@ -77,14 +86,10 @@ entities { cameraToViewport, mousePosition, clickPosition, time } =
                     [ mob worldToViewport (Vec2.fromRecord collision.fix) (vec3 0 1 0) ]
 
         blockers =
-            obstacleToEntity worldToViewport ( ( 0, 0 ), 'H' )
-
-        {-
-           Game.tilemap
-               |> Dict.toList
-               |> List.map (obstacleToEntity worldToViewport)
-               |> List.concat
-        -}
+            Game.tilemap
+                |> Dict.toList
+                |> List.map (obstacleToEntity worldToViewport)
+                |> List.concat
     in
     List.concat
         [ blockers
