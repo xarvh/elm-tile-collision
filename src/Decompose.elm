@@ -123,18 +123,6 @@ vecToRowColumn v =
     }
 
 
-tileRange : Float -> Float -> Float -> List Int
-tileRange start end half =
-    if start < end then
-        List.range
-            (coordinateToTile <| start + half)
-            (coordinateToTile <| end + half)
-    else
-        List.range
-            (coordinateToTile <| end - half)
-            (coordinateToTile <| start - half)
-
-
 tileAdd : RowColumn -> Vec -> Vec
 tileAdd tile vec =
     { x = vec.x + toFloat tile.column
@@ -186,36 +174,22 @@ If the AABB is moving right, consider only the tiles swept by the right side of 
 -}
 sweep : AbsoluteAabbTrajectory -> List RowColumn
 sweep { start, end, width, height } =
-    let
-        halfWidth =
-            width / 2
+    List.Extra.lift2
+        (\x y -> { column = x, row = y })
+        (tileRange start.x end.x (width / 2))
+        (tileRange start.y end.y (height / 2))
 
-        halfHeight =
-            height / 2
 
-        hasDx =
-            start.x /= end.x
-
-        hasDy =
-            start.y /= end.y
-    in
-    case ( hasDx, hasDy ) of
-        ( False, False ) ->
-            []
-
-        ( True, False ) ->
-            tileRange start.x end.x halfWidth
-                |> List.map (\x -> { column = x, row = coordinateToTile start.y })
-
-        ( False, True ) ->
-            tileRange start.y end.y halfHeight
-                |> List.map (\y -> { column = coordinateToTile start.x, row = y })
-
-        ( True, True ) ->
-            List.Extra.lift2
-                (\x y -> { column = x, row = y })
-                (tileRange start.x end.x halfWidth)
-                (tileRange start.y end.y halfHeight)
+tileRange : Float -> Float -> Float -> List Int
+tileRange start end half =
+    if start < end then
+        List.range
+            (coordinateToTile <| start - half)
+            (coordinateToTile <| end + half)
+    else
+        List.range
+            (coordinateToTile <| end - half)
+            (coordinateToTile <| start + half)
 
 
 

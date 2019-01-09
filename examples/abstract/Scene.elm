@@ -69,13 +69,23 @@ entities { cameraToViewport, mousePosition, clickPosition, time, collision, traj
                     []
 
                 Just c ->
-                    [ { trajectory
-                        | start = c.aabbPositionAtImpact
-                        , end = c.fix
-                      }
-                        |> Decompose.sweep
+                    let
+                        t =
+                            { trajectory
+                                | start = c.aabbPositionAtImpact
+                                , end = c.fix
+                            }
+
+                        sweep =
+                            Decompose.sweep t
+
+                        l =
+                            Debug.log "" ( t, sweep )
+                    in
+                    [ sweep
                         |> List.map (\tile -> tileColor worldToViewport tile (vec3 0 0 0.3))
                     , [ mob worldToViewport (Vec2.fromRecord c.fix) (vec3 0 1 0)
+                      , mob worldToViewport (Vec2.fromRecord c.aabbPositionAtImpact) (vec3 0.8 0.8 0.8)
                       , dot worldToViewport (Vec2.fromRecord c.impactPoint) 1 (vec3 0.5 0.5 0.5)
                       , dot worldToViewport (tileToVec2 c.tile) 1 (vec3 0.5 0.0 0.5)
                       ]
