@@ -2,7 +2,7 @@ module Main exposing (..)
 
 import Browser
 import Browser.Events
-import Decompose exposing (Collision, SquareBlocker)
+import Decompose exposing (AbsoluteAabbTrajectory, Collision, SquareBlocker, Vec)
 import Dict
 import Game
 import Html exposing (..)
@@ -28,12 +28,12 @@ type alias Flags =
 type alias Model =
     { viewportSize : PixelSize
     , mousePosition : Vec2
-
-    --, clickPosition : PixelPosition
+    , selectedCollision : Int
     , currentTimeInSeconds : Float
     , position : Vec2
     , velocity : Vec2
     , collisions : List (Collision SquareBlocker)
+    , trajectory : AbsoluteAabbTrajectory
     }
 
 
@@ -42,6 +42,7 @@ type Msg
     | OnMouseMove PixelPosition
     | OnMouseClick
     | OnAnimationFrame Float
+    | OnKeyPress String
 
 
 
@@ -68,10 +69,18 @@ init flags =
                , left = 240
                }
             -}
+            , selectedCollision = 0
             , position = vec2 0 0
             , velocity = vec2 0 0
             , currentTimeInSeconds = 0
             , collisions = []
+            , trajectory =
+                { start = Vec 0 0
+                , end = Vec 0 0
+                , width = 1
+                , height = 1
+                , minimumDistance = 1
+                }
             }
 
         cmd =
@@ -100,6 +109,18 @@ update msg model =
 
         OnMouseClick ->
             noCmd { model | position = model.mousePosition }
+
+        OnKeyPress key ->
+            noCmd <|
+                case Debug.log "" key of
+                    "+" ->
+                        { model | selectedCollision = max 0 (model.selectedCollision + 1) }
+
+                    "-" ->
+                        { model | selectedCollision = max 0 (model.selectedCollision - 1) }
+
+                    _ ->
+                        model
 
         OnAnimationFrame dtInMilliseconds ->
             let
@@ -136,23 +157,23 @@ update msg model =
                         _ ->
                             Decompose.emptyTile
 
+                trajectory =
+                    { start = Vec2.toRecord model.position
+                    , end = Vec2.toRecord model.mousePosition
+                    , width = 2 * toFloat Game.mobSize.halfWidth / toFloat Game.tileSize
+                    , height = 2 * toFloat Game.mobSize.halfHeight / toFloat Game.tileSize
+                    , minimumDistance = 0.01
+                    }
+
                 collisions =
-                    Decompose.collide
-                        getCollider
-                        { start = Vec2.toRecord model.position
-                        , end = Vec2.toRecord model.mousePosition
-                        , width = 2 * toFloat Game.mobSize.halfWidth / toFloat Game.tileSize
-                        , height = 2 * toFloat Game.mobSize.halfHeight / toFloat Game.tileSize
-                        , minimumDistance = 0.01
-                        }
+                    Decompose.collide getCollider trajectory
             in
             noCmd
                 { model
                     | currentTimeInSeconds = model.currentTimeInSeconds + dt / 1000
                     , velocity = velocity
                     , collisions = collisions
-
-                    --, position = Game.ints2vec fixedPosition
+                    , trajectory = trajectory
                 }
 
 
@@ -182,7 +203,8 @@ view model =
                 , mousePosition = model.mousePosition
                 , clickPosition = model.position
                 , time = model.currentTimeInSeconds
-                , collisions = model.collisions
+                , collision = List.drop model.selectedCollision model.collisions |> List.head
+                , trajectory = model.trajectory
                 }
     in
     { title = "WebGL Scaffold"
@@ -190,9 +212,12 @@ view model =
         [ Viewport.toHtml model.viewportSize entities
         , div
             [ class "overlay" ]
-            [ model.collisions
-              |> List.map (Debug.toString >> text)
-              |> ul []
+            [ div
+                []
+                [ text (String.fromInt model.selectedCollision) ]
+            , model.collisions
+                |> List.map (Debug.toString >> text)
+                |> ul []
             ]
         , Html.node "style" [] [ Html.text css ]
         ]
@@ -217,6 +242,7 @@ subscriptions model =
         , Browser.Events.onAnimationFrameDelta OnAnimationFrame
         , Browser.Events.onMouseMove mousePositionDecoder |> Sub.map OnMouseMove
         , Browser.Events.onClick (Json.Decode.succeed OnMouseClick)
+        , Browser.Events.onKeyPress (Json.Decode.map OnKeyPress <| Json.Decode.field "key" Json.Decode.string)
         ]
 
 

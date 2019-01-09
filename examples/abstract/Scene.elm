@@ -1,7 +1,7 @@
 module Scene exposing (..)
 
 import Circle
-import Decompose exposing  (Collision, SquareBlocker)
+import Decompose exposing (AbsoluteAabbTrajectory, Collision, RowColumn, SquareBlocker)
 import Dict exposing (Dict)
 import Game exposing (..)
 import Math.Matrix4 as Mat4 exposing (Mat4)
@@ -43,12 +43,13 @@ type alias EntitiesArgs =
     , mousePosition : Vec2
     , clickPosition : Vec2
     , time : Float
-    , collisions : List (Collision SquareBlocker)
+    , collision : Maybe (Collision SquareBlocker)
+    , trajectory : AbsoluteAabbTrajectory
     }
 
 
 entities : EntitiesArgs -> List Entity
-entities { cameraToViewport, mousePosition, clickPosition, time, collisions } =
+entities { cameraToViewport, mousePosition, clickPosition, time, collision, trajectory } =
     let
         worldToViewport =
             cameraToViewport
@@ -59,20 +60,27 @@ entities { cameraToViewport, mousePosition, clickPosition, time, collisions } =
             , mob worldToViewport mousePosition (vec3 1 0 0)
             ]
 
-
         tileToVec2 tile =
-          vec2 (toFloat tile.column) (toFloat tile.row)
+            vec2 (toFloat tile.column) (toFloat tile.row)
 
         collisionEntities =
-            case List.head collisions of
+            case collision of
                 Nothing ->
                     []
 
-                Just collision ->
-                    [ mob worldToViewport (Vec2.fromRecord collision.fix) (vec3 0 1 0)
-                    , dot worldToViewport (Vec2.fromRecord collision.impactPoint) 1 (vec3 0.5 0.5 0.5)
-                    ,  dot worldToViewport (tileToVec2 collision.tile) 1 (vec3 0.5 0.0 0.5)
+                Just c ->
+                    [ { trajectory
+                        | start = c.aabbPositionAtImpact
+                        , end = c.fix
+                      }
+                        |> Decompose.sweep
+                        |> List.map (\tile -> tileColor worldToViewport tile (vec3 0 0 0.3))
+                    , [ mob worldToViewport (Vec2.fromRecord c.fix) (vec3 0 1 0)
+                      , dot worldToViewport (Vec2.fromRecord c.impactPoint) 1 (vec3 0.5 0.5 0.5)
+                      , dot worldToViewport (tileToVec2 c.tile) 1 (vec3 0.5 0.0 0.5)
+                      ]
                     ]
+                        |> List.concat
 
         blockers =
             Game.tilemap
@@ -116,22 +124,20 @@ dot worldToViewport position size color =
     Circle.entity entityToViewport color
 
 
+tileColor : Mat4 -> RowColumn -> Vec3 -> Entity
+tileColor worldToViewport tile color =
+    let
+        x =
+            toFloat tile.column
 
-{-
-   tileColor : Mat4 -> Tile -> Vec3 -> Entity
-   tileColor worldToViewport tile color =
-       let
-           { x, y } =
-               tile
-                   |> tileCenter
-                   |> Vec2.toRecord
+        y =
+            toFloat tile.row
 
-           entityToViewport =
-               worldToViewport
-                   |> Mat4.translate3 x y 0
-       in
-       Quad.entity entityToViewport color
--}
+        entityToViewport =
+            worldToViewport
+                |> Mat4.translate3 x y 0
+    in
+    Quad.entity entityToViewport color
 
 
 obstacleToEntity : Mat4 -> ( ( Int, Int ), Char ) -> List Entity
