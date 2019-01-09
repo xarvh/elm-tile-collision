@@ -388,7 +388,7 @@ leftToRightBlocker { relativeStart, relativeEnd, halfWidth, halfHeight, minimumD
             Just
                 { geometry = ()
                 , impactPoint = point
-                , aabbPositionAtImpact = point -- TODO this is wrong
+                , aabbPositionAtImpact = { x = fixedX, y = collisionY }
                 , fix = { relativeEnd | x = max relativeStart.x fixedX }
                 , distanceSquared = distanceSquared point relativeStart
                 , tile = { row = 0, column = 0 }

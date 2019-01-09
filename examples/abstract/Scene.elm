@@ -1,7 +1,7 @@
 module Scene exposing (..)
 
 import Circle
-import Decompose
+import Decompose exposing  (Collision, SquareBlocker)
 import Dict exposing (Dict)
 import Game exposing (..)
 import Math.Matrix4 as Mat4 exposing (Mat4)
@@ -43,11 +43,12 @@ type alias EntitiesArgs =
     , mousePosition : Vec2
     , clickPosition : Vec2
     , time : Float
+    , collisions : List (Collision SquareBlocker)
     }
 
 
 entities : EntitiesArgs -> List Entity
-entities { cameraToViewport, mousePosition, clickPosition, time } =
+entities { cameraToViewport, mousePosition, clickPosition, time, collisions } =
     let
         worldToViewport =
             cameraToViewport
@@ -58,24 +59,9 @@ entities { cameraToViewport, mousePosition, clickPosition, time } =
             , mob worldToViewport mousePosition (vec3 1 0 0)
             ]
 
-        getCollider { row, column } =
-            case Dict.get ( column, row ) Game.tilemap of
-                Just '#' ->
-                    Decompose.squareBlocker
 
-                _ ->
-                    Decompose.emptyTile
-
-        collisions =
-            Decompose.collide
-                getCollider
-                { start = Vec2.toRecord clickPosition
-                , end = Vec2.toRecord mousePosition
-                , width = 2 * toFloat mobSize.halfWidth / toFloat tileSize
-                , height = 2 * toFloat mobSize.halfHeight / toFloat tileSize
-                , minimumDistance = 0.01
-                }
-                |> Debug.log ""
+        tileToVec2 tile =
+          vec2 (toFloat tile.column) (toFloat tile.row)
 
         collisionEntities =
             case List.head collisions of
@@ -83,7 +69,10 @@ entities { cameraToViewport, mousePosition, clickPosition, time } =
                     []
 
                 Just collision ->
-                    [ mob worldToViewport (Vec2.fromRecord collision.fix) (vec3 0 1 0) ]
+                    [ mob worldToViewport (Vec2.fromRecord collision.fix) (vec3 0 1 0)
+                    , dot worldToViewport (Vec2.fromRecord collision.impactPoint) 1 (vec3 0.5 0.5 0.5)
+                    ,  dot worldToViewport (tileToVec2 collision.tile) 1 (vec3 0.5 0.0 0.5)
+                    ]
 
         blockers =
             Game.tilemap
