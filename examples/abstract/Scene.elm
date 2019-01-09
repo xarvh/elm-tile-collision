@@ -79,8 +79,8 @@ entities { cameraToViewport, mousePosition, clickPosition, time, collision, traj
                         sweep =
                             Decompose.sweep t
 
-                        l =
-                            Debug.log "" ( t, sweep )
+--                         l =
+--                             Debug.log "" ( t, sweep )
                     in
                     [ sweep
                         |> List.map (\tile -> tileColor worldToViewport tile (vec3 0 0 0.3))
